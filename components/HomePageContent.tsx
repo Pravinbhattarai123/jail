@@ -5,6 +5,7 @@ import CollectionDisplay from './Collectiondisplay';
 import ShopByCategories from './ShopbyCategories';
 import BestSellerSection from './BestsellerSection';
 
+
 import CategoryShowcase from './CategoryShowcase';
 import ImageSlider from './ImageSlider';
 
