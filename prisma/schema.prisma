@@ -1,0 +1,533 @@
+// Prisma schema for JailWeb Next.js e-commerce app
+
+generator client {
+    provider = "prisma-client-js"
+}
+
+datasource db {
+    provider = "postgresql"
+    url      = env("DATABASE_URL")
+}
+
+// --------------------
+// Enums
+// --------------------
+
+enum UserRole {
+    ADMIN
+    MODERATOR
+    SELLER
+    CUSTOMER
+}
+
+enum OtpPurpose {
+    EMAIL_VERIFICATION
+    PASSWORD_RESET
+    LOGIN
+}
+
+enum CartStatus {
+    ACTIVE
+    CHECKED_OUT
+    ABANDONED
+}
+
+enum OrderStatus {
+    PENDING
+    CONFIRMED
+    PROCESSING
+    SHIPPED
+    DELIVERED
+    CANCELLED
+    RETURNED
+}
+
+enum PaymentStatus {
+    PENDING
+    REQUIRES_ACTION
+    SUCCEEDED
+    FAILED
+    REFUNDED
+}
+
+enum PaymentProvider {
+    RAZORPAY
+    STRIPE
+    CASH_ON_DELIVERY
+    MANUAL
+}
+
+enum DiscountType {
+    PERCENT
+    FIXED
+}
+
+enum Gender {
+    MALE
+    FEMALE
+    UNISEX
+}
+
+// --------------------
+// Core Auth & Users
+// --------------------
+
+model User {
+    id              Int       @id @default(autoincrement())
+    email           String    @unique
+    phone           String?   @unique
+    name            String?
+    passwordHash    String?
+    role            UserRole  @default(CUSTOMER)
+    isActive        Boolean   @default(true)
+    emailVerifiedAt DateTime?
+
+    addresses Address[]
+    cart      Cart?
+    orders    Order[]
+    reviews   Review[]
+    wishlist  Wishlist?
+    otpTokens OtpToken[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([role])
+    @@index([createdAt])
+}
+
+// Store hashed OTPs for email verification, password reset, or magic login
+model OtpToken {
+    id        String     @id @default(cuid())
+    userId    Int?
+    user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+    email     String
+    codeHash  String // NEVER store raw OTP; store a hash
+    purpose   OtpPurpose
+    expiresAt DateTime
+    usedAt    DateTime?
+    attempts  Int        @default(0)
+    ip        String?
+    userAgent String?
+    createdAt DateTime   @default(now())
+
+    @@index([email, purpose])
+    @@index([expiresAt])
+}
+
+// --------------------
+// Catalog
+// --------------------
+
+model Category {
+    id            Int           @id @default(autoincrement())
+    name          String
+    slug          String        @unique
+    description   String?
+    subcategories Subcategory[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+model Subcategory {
+    id         Int       @id @default(autoincrement())
+    name       String
+    slug       String    @unique
+    categoryId Int
+    category   Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+    products   Product[]
+    // Optional size set (navigation field). The actual foreign key is stored on `SizeSet.subcategoryId`.
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([categoryId])
+}
+
+model Brand {
+    id        Int      @id @default(autoincrement())
+    name      String
+    slug      String   @unique
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    products Product[]
+}
+
+model Product {
+    id             Int           @id @default(autoincrement())
+    title          String
+    slug           String        @unique
+    description    String?
+    active         Boolean       @default(true)
+    subcategoryId  Int
+    subcategory    Subcategory   @relation(fields: [subcategoryId], references: [id], onDelete: Restrict)
+    brandId        Int?
+    brand          Brand?        @relation(fields: [brandId], references: [id], onDelete: SetNull)
+    // Variant-less pricing/inventory
+    price          Decimal       @db.Decimal(10, 2)
+    compareAtPrice Decimal?      @db.Decimal(10, 2)
+    currency       String        @default("INR") @db.VarChar(3)
+    stock          Int           @default(0)
+    color          String?
+    gender         Gender        @default(UNISEX)
+    material       String?
+    // Always-present shared attributes
+    weight         String        @default("") @db.VarChar(50)
+    materials      String[]      @default([])
+    // Flexible category-specific attributes (JSON blob)
+    attributes     Json?
+    // Optional product video URL (MP4 or streaming URL)
+    videoUrl       String?
+    // Optional structured offer fields (UI will show price before/after using price & compareAtPrice)
+    offerType      DiscountType?
+    offerValue     Decimal?      @db.Decimal(10, 2)
+    // Optional comma-separated colors (e.g. "red,blue,black") for simple filtering in admin
+    colors         String?
+    sizes          String?
+    // Whether to show this product in the public image gallery (uses first image)
+    showInGallery  Boolean       @default(true)
+
+    images  ProductImage[]
+    reviews Review[]
+    details ProductDetail?
+    // Optional override to use a specific size set for this product
+
+    features      ProductFeature[]
+    cartItems     CartItem[]
+    wishlistItems WishlistItem[]
+    orderItems    OrderItem[]
+    // New many-to-many color references (kept separate from legacy CSV `colors`)
+    colorsRel     Color[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([subcategoryId])
+    @@index([brandId])
+    @@index([createdAt])
+}
+
+// Color catalog with case-insensitive name validation (enforced in backend);
+// nameLower can be used to ensure unique(lower(name)) semantics when populated by API.
+model Color {
+    id        Int     @id @default(autoincrement())
+    name      String
+    nameLower String  @unique
+    hex       String?
+
+    products Product[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([name])
+}
+
+model ProductImage {
+    id        Int     @id @default(autoincrement())
+    productId Int
+    product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+    url       String
+    alt       String?
+    position  Int?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([productId])
+}
+
+// ProductVariant removed as per requirements; using single product with color/price/stock
+
+// --------------------
+// Cart & Wishlist
+// --------------------
+
+model Cart {
+    id        String     @id @default(cuid())
+    userId    Int?
+    user      User?      @relation(fields: [userId], references: [id], onDelete: SetNull)
+    sessionId String?    @unique
+    status    CartStatus @default(ACTIVE)
+
+    items    CartItem[]
+    couponId Int?
+    coupon   Coupon?    @relation(fields: [couponId], references: [id], onDelete: SetNull)
+
+    subtotal Decimal @default(0) @db.Decimal(10, 2)
+    discount Decimal @default(0) @db.Decimal(10, 2)
+    tax      Decimal @default(0) @db.Decimal(10, 2)
+    shipping Decimal @default(0) @db.Decimal(10, 2)
+    total    Decimal @default(0) @db.Decimal(10, 2)
+    currency String  @default("INR") @db.VarChar(3)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([userId])
+    @@index([userId])
+    @@index([status])
+}
+
+model CartItem {
+    id        Int     @id @default(autoincrement())
+    cartId    String
+    cart      Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+    productId Int
+    product   Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+    quantity  Int     @default(1)
+    unitPrice Decimal @db.Decimal(10, 2)
+    currency  String  @default("INR") @db.VarChar(3)
+
+    // Useful snapshots to display items even if product changes later
+    title           String
+    color           String?
+    productImageUrl String?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([cartId, productId])
+    @@index([productId])
+}
+
+model Wishlist {
+    id        Int            @id @default(autoincrement())
+    userId    Int
+    user      User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+    items     WishlistItem[]
+    createdAt DateTime       @default(now())
+    updatedAt DateTime       @updatedAt
+
+    @@unique([userId])
+}
+
+model WishlistItem {
+    id         Int      @id @default(autoincrement())
+    wishlistId Int
+    wishlist   Wishlist @relation(fields: [wishlistId], references: [id], onDelete: Cascade)
+    productId  Int
+    product    Product  @relation(fields: [productId], references: [id], onDelete: Restrict)
+    createdAt  DateTime @default(now())
+
+    @@unique([wishlistId, productId])
+}
+
+// --------------------
+// Orders & Payments
+// --------------------
+
+model Order {
+    id          String @id @default(cuid())
+    orderNumber String @unique
+    userId      Int?
+    user        User?  @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+    status        OrderStatus   @default(PENDING)
+    paymentStatus PaymentStatus @default(PENDING)
+
+    items   OrderItem[]
+    payment Payment?
+
+    // Monetary totals (in smallest currency unit or 2-decimal decimals; use Decimal here)
+    subtotal Decimal @db.Decimal(10, 2)
+    discount Decimal @default(0) @db.Decimal(10, 2)
+    tax      Decimal @default(0) @db.Decimal(10, 2)
+    shipping Decimal @default(0) @db.Decimal(10, 2)
+    total    Decimal @db.Decimal(10, 2)
+    currency String  @default("INR") @db.VarChar(3)
+
+    // Address snapshots captured at checkout
+    shippingAddress Json
+    billingAddress  Json?
+
+    couponCode String?
+    notes      String?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([userId])
+    @@index([status])
+    @@index([createdAt])
+}
+
+model OrderItem {
+    id      Int    @id @default(autoincrement())
+    orderId String
+    order   Order  @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+    productId Int?
+    product   Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+    sku       String?
+    title     String
+    color     String?
+    quantity  Int     @default(1)
+    unitPrice Decimal @db.Decimal(10, 2)
+    lineTotal Decimal @db.Decimal(10, 2)
+    imageUrl  String?
+
+    createdAt DateTime @default(now())
+
+    @@index([orderId])
+}
+
+model Payment {
+    id                String          @id @default(cuid())
+    orderId           String          @unique
+    order             Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+    amount            Decimal         @db.Decimal(10, 2)
+    currency          String          @default("INR") @db.VarChar(3)
+    status            PaymentStatus   @default(PENDING)
+    provider          PaymentProvider
+    providerPaymentId String?
+    providerOrderId   String?
+    method            String? // e.g. card, upi, netbanking, cod
+    cardBrand         String?
+    last4             String?         @db.VarChar(4)
+    paidAt            DateTime?
+    failureCode       String?
+    failureMessage    String?
+    createdAt         DateTime        @default(now())
+    updatedAt         DateTime        @updatedAt
+
+    @@index([status])
+    @@index([provider])
+}
+
+// --------------------
+// Customer Data
+// --------------------
+
+model Address {
+    id                Int     @id @default(autoincrement())
+    userId            Int
+    user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+    label             String?
+    name              String?
+    phone             String?
+    line1             String
+    line2             String?
+    city              String
+    state             String?
+    postalCode        String
+    countryCode       String  @db.VarChar(2)
+    isDefaultShipping Boolean @default(false)
+    isDefaultBilling  Boolean @default(false)
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([userId])
+}
+
+model Coupon {
+    id               Int          @id @default(autoincrement())
+    code             String       @unique
+    description      String?
+    discountType     DiscountType
+    discountValue    Decimal      @db.Decimal(10, 2)
+    maxDiscountValue Decimal?     @db.Decimal(10, 2)
+    minOrderAmount   Decimal?     @db.Decimal(10, 2)
+    startsAt         DateTime?
+    endsAt           DateTime?
+    usageLimit       Int?
+    usedCount        Int          @default(0)
+    active           Boolean      @default(true)
+
+    carts Cart[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}
+
+// --------------------
+// Product Rich Content
+// --------------------
+
+// Optional one-to-one extra details per product
+model ProductDetail {
+    id           Int      @id @default(autoincrement())
+    productId    Int      @unique
+    product      Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+    warranty     String?
+    moreInfo     String?
+    heroImageUrl String? // "girl image" hero section
+    // Optional measurement/size-chart image URL
+    measurementImageUrl String?
+    // dimensions: used for products where physical dimensions apply (bags, boxes, etc.)
+    dimensions   Json?
+    // NOTE: Prisma does not support optional list fields (String[]?). Keep as String[] and treat as optional at API level.
+    clothesSize  String[]
+    shoesSize    String[]
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([productId])
+}
+
+// SizeSet represents a size chart applicable to a subcategory (for example: Jackets size chart)
+
+// SizeValue stores a single size label and its measurements.
+// measurements stored as JSON to allow flexible keys (chest, waist, length, etc.)
+
+// Multiple feature blocks for product specifications
+model ProductFeature {
+    id          Int     @id @default(autoincrement())
+    productId   Int
+    product     Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+    title       String
+    description String?
+    imageUrl    String?
+    order       Int?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@index([productId])
+    @@index([productId, order])
+}
+
+model Review {
+    id        Int      @id @default(autoincrement())
+    userId    Int
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    productId Int
+    product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+    rating    Int
+    title     String?
+    content   String?
+    approved  Boolean  @default(false)
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+
+    @@unique([userId, productId])
+    @@index([productId])
+}
+
+// --------------------
+// Shipping & Delivery Settings (single-row table)
+// --------------------
+// Holds site-wide delivery settings used to compute expected delivery windows.
+// We intentionally use a fixed id default(1) to keep it a singleton.
+model ShippingSetting {
+    id                Int      @id @default(1)
+    // Handling/processing time before dispatch (business days)
+    processingDaysMin Int      @default(1)
+    processingDaysMax Int      @default(2)
+    // Transit time with the carrier (business days)
+    transitDaysMin    Int      @default(2)
+    transitDaysMax    Int      @default(5)
+    // If false, weekends are skipped when adding days
+    weekendDelivery   Boolean  @default(false)
+    // Optional region overrides (e.g. {"IN": {"transitDaysMin":2,"transitDaysMax":4}})
+    regions           Json?
+
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+}

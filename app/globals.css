@@ -1,0 +1,202 @@
+/* Google Font: Bodoni Moda */
+@import url('https://fonts.googleapis.com/css2?family=Bodoni+Moda:ital,opsz,wght@0,6..96,400..900;1,6..96,400..900&display=swap');
+@import "tailwindcss";
+
+/*
+  Theme variables used across the site. Tailwind dark mode is configured to 'class',
+  and we toggle the `dark` class on <html> to switch themes. These variables
+  provide a simple way to get a global color change immediately. For full
+  component-level dark styling, add Tailwind's `dark:` variants to components
+  or replace hard-coded colors with the CSS variables below.
+*/
+
+:root {
+  --site-bg: #ffffff;
+  --site-foreground: #000000; /* force black text */
+  --nav-bg: #ffffff;
+  --nav-foreground: #0B0B0B;
+  --card-bg: #ffffff;
+  --muted: #6b7280;
+  --button-bg: #0B0B0B; /* dark button in light mode */
+  --button-foreground: #ffffff;
+  --image-shadow: 0 10px 30px rgba(16, 24, 40, 0.15);
+}
+
+/* Neutralize dark mode: keep white background and black text even if `.dark` is toggled */
+.dark {
+  --site-bg: #ffffff;
+  --site-foreground: #000000;
+  --nav-bg: #ffffff;
+  --nav-foreground: #000000;
+  --card-bg: #ffffff;
+  --muted: #6b7280;
+  --button-bg: #ffffff; /* buttons also white by default */
+  --button-foreground: #000000;
+  --image-shadow: 0 10px 30px rgba(16, 24, 40, 0.15);
+}
+
+body {
+  background: var(--site-bg);
+  color: var(--site-foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* smooth color transitions when toggling themes */
+html,
+body,
+#__next {
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+/* Smooth scrolling for anchor navigation */
+html {
+  scroll-behavior: smooth;
+}
+
+/* globals.css */
+.hero-wallet {
+  background-image: url("/assets/Hero/Wallet.png");
+  background-size: cover;
+  background-repeat: no-repeat;
+  width: 615px;
+  height: 455px;
+}
+
+/* Global overrides (always-on) to force white backgrounds & black text site-wide */
+.bg-white,
+.bg-neutral-900,
+.bg-gray-50,
+.bg-gray-100,
+.bg-gray-200,
+.bg-gray-700,
+.bg-gray-800,
+.bg-gray-900,
+.bg-black,
+.bg-neutral-800,
+.bg-neutral-700 {
+  background-color: var(--card-bg) !important;
+}
+
+/* Replace dark overlays with white translucency */
+.bg-black\/90 { background-color: rgba(255, 255, 255, 0.9) !important; }
+.bg-black\/80 { background-color: rgba(255, 255, 255, 0.8) !important; }
+.bg-black\/70 { background-color: rgba(255, 255, 255, 0.7) !important; }
+.bg-black\/60 { background-color: rgba(255, 255, 255, 0.6) !important; }
+.bg-black\/50 { background-color: rgba(255, 255, 255, 0.5) !important; }
+.bg-black\/40 { background-color: rgba(255, 255, 255, 0.4) !important; }
+.bg-black\/30 { background-color: rgba(255, 255, 255, 0.3) !important; }
+.bg-black\/20 { background-color: rgba(255, 255, 255, 0.2) !important; }
+.bg-black\/10 { background-color: rgba(255, 255, 255, 0.1) !important; }
+
+/* Force text to black for common utility classes (exclude .text-white to allow white overlays) */
+.text-gray-50,
+.text-gray-100,
+.text-gray-200,
+.text-gray-300,
+.text-gray-400,
+.text-gray-500,
+.text-gray-600,
+.text-gray-700,
+.text-gray-800,
+.text-gray-900,
+.text-neutral-50,
+.text-neutral-100,
+.text-neutral-200,
+.text-neutral-300,
+.text-neutral-400,
+.text-neutral-500,
+.text-neutral-600,
+.text-neutral-700,
+.text-neutral-800,
+.text-neutral-900 {
+  color: var(--site-foreground) !important;
+}
+
+/*
+  Strong site-wide enforcement: force root background and text color to the
+  theme variables and map common Tailwind utilities to those variables so the
+  entire UI flips reliably when toggling theme. Use with care - this will
+  override many component-level colors to ensure consistency.
+*/
+html,
+body,
+#__next,
+main,
+section,
+header,
+footer {
+  background: var(--site-bg) !important;
+  color: var(--site-foreground) !important;
+}
+
+/* Map frequent utility classes to theme variables (both light and dark). */
+
+/* Luxury serif heading utility */
+.lux-serif {
+  font-family: "Bodoni Moda", ui-serif, Georgia, Cambria, "Times New Roman", Times, serif;
+  letter-spacing: 0.02em;
+}
+
+/* Explicit Bodoni utility if you want to opt-in on specific blocks */
+.font-bodoni {
+  font-family: "Bodoni Moda", serif;
+  font-optical-sizing: auto;
+  font-weight: 400;
+  font-style: normal;
+}
+.bg-white {
+  background: var(--card-bg) !important;
+}
+.bg-neutral-900 {
+  background: var(--nav-bg) !important;
+}
+.bg-black {
+  background: var(--nav-bg) !important;
+}
+.bg-gray-50,
+.bg-gray-100,
+.bg-gray-200 {
+  background: var(--card-bg) !important;
+}
+.bg-gray-700,
+.bg-gray-800,
+.bg-gray-900 {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Removed aggressive text color overrides to respect component-level colors */
+
+.border-gray-200,
+.border-gray-100,
+.border-gray-300,
+.border-black {
+  border-color: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* Buttons and interactive elements - avoid overriding component intent */
+/* Removed empty override block to satisfy CSS linter */
+/* Allow white text utility to behave normally without forcing a white background */
+.text-white {
+  color: #ffffff !important;
+  background: transparent !important;
+}
+.hover\:bg-gray-50:hover,
+.hover\:bg-gray-100:hover {
+  background: rgba(255, 255, 255, 0.02) !important;
+}
+
+/* Links: allow components to set their own colors */
+
+.cs-bg-black {
+  background-color: #ffffff !important;
+}
+
+/* Hide scrollbars helper while preserving scroll functionality */
+.no-scrollbar {
+  -ms-overflow-style: none; /* IE and Edge */
+  scrollbar-width: none; /* Firefox */
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none; /* Chrome, Safari, Opera */
+  height: 0; /* horizontal scrollbar */
+}
